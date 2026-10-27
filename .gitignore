@@ -1,0 +1,7 @@
+node_modules/
+out/
+dist/
+test/out/
+test/bench-data/
+# Local research notes about the reference app; not part of the public project.
+AUDIT.md

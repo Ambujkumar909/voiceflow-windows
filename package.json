@@ -1,0 +1,105 @@
+{
+  "name": "voiceflow",
+  "version": "1.0.0",
+  "private": true,
+  "description": "VoiceFlow: hold Ctrl+Win, speak, and your words are typed in any Windows app. Live streaming with Deepgram Nova-3, local Whisper fallback.",
+  "main": "out/main/index.js",
+  "license": "MIT",
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "start": "electron-vite preview",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --no-warnings --test src/main/*.test.ts src/main/stt/*.test.ts",
+    "bench": "electron-vite build && electron . --bench",
+    "bench:frontend": "electron-vite build && electron . --bench-frontend",
+    "selftest": "electron-vite build && electron . --selftest",
+    "selftest:ui": "electron-vite build && electron . --selftest --ui-only",
+    "selftest:quiet": "electron-vite build && electron . --selftest --fake-mic",
+    "icons": "electron scripts/make-icons.mjs",
+    "dist": "electron-vite build && electron-builder --win nsis"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.3.1",
+    "uiohook-napi": "1.5.5"
+  },
+  "devDependencies": {
+    "@fontsource-variable/eb-garamond": "5.3.0",
+    "@fontsource-variable/figtree": "5.3.0",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "electron": "^44.9.3",
+    "electron-builder": "26.17.0",
+    "electron-vite": "^6.0.0",
+    "lucide-react": "1.55.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.5"
+  },
+  "allowScripts": {
+    "onnxruntime-node": false,
+    "protobufjs": false,
+    "uiohook-napi": false,
+    "electron-winstaller": false
+  },
+  "productName": "VoiceFlow",
+  "author": "Ambuj Kumar",
+  "build": {
+    "appId": "com.voiceflow.desktop",
+    "productName": "VoiceFlow",
+    "copyright": "Copyright © 2026 Ambuj Kumar",
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "electronDist": "node_modules/electron/dist",
+    "npmRebuild": false,
+    "files": [
+      "out/**",
+      "resources/**",
+      "package.json",
+      "!**/*.map",
+      "!**/node_modules/onnxruntime-web/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/{darwin,linux}/**",
+      "!**/node_modules/onnxruntime-node/bin/napi-v6/win32/arm64/**",
+      "!**/node_modules/uiohook-napi/prebuilds/{darwin-*,linux-*,win32-arm64}/**",
+      "!**/node_modules/uiohook-napi/{libuiohook,src}/**"
+    ],
+    "asarUnpack": [
+      "**/node_modules/onnxruntime-node/bin/**",
+      "**/node_modules/uiohook-napi/prebuilds/**",
+      "**/node_modules/sharp/**",
+      "**/node_modules/@img/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "VoiceFlow",
+      "runAfterFinish": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "artifactName": "VoiceFlow-Setup-${version}.exe"
+    }
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ambujkumar909/voiceflow-windows.git"
+  }
+}

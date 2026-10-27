@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <!-- VoiceFlow mark: five sound bars whose tops dip into a "V". Original artwork. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#2b2b2a" />
+      <stop offset="1" stop-color="#121212" />
+    </linearGradient>
+    <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
+      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0" />
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffbf6b" />
+      <stop offset="1" stop-color="#ff9a2e" />
+    </linearGradient>
+  </defs>
+  <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#tile)" />
+  <rect x="33.5" y="33.5" width="957" height="957" rx="222.5" fill="none" stroke="url(#rim)" stroke-width="3" />
+  <!-- bars share a baseline at y=770; heights fall toward the centre and rise again: a V -->
+  <g fill="#f5f4f0">
+    <rect x="212" y="254" width="88" height="516" rx="44" />
+    <rect x="344" y="364" width="88" height="406" rx="44" />
+    <rect x="608" y="364" width="88" height="406" rx="44" />
+    <rect x="740" y="254" width="88" height="516" rx="44" />
+  </g>
+  <rect x="476" y="494" width="88" height="276" rx="44" fill="url(#accent)" />
+</svg>
