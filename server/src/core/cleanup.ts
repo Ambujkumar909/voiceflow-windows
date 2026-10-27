@@ -1,4 +1,10 @@
-import type { CleanupOptions } from '../shared/types'
+export interface CleanupOptions {
+  removeFillers: boolean
+  capitalize: boolean
+  finalPunctuation: boolean
+  spokenCommands: boolean
+  trailingSpace: boolean
+}
 
 const FILLERS = /(^|\s)(?:um+|uh+|uhm+|erm+|hmm+|mm+)[,.]?(?=\s|$)/gi
 

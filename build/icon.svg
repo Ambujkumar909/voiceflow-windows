@@ -1,27 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
-  <!-- VoiceFlow mark: five sound bars whose tops dip into a "V". Original artwork. -->
+  <!-- VoiceFlow mark: a "V" whose right stroke breaks into fading dots, a voice turning into motion. Original artwork. -->
   <defs>
-    <linearGradient id="tile" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#2b2b2a" />
-      <stop offset="1" stop-color="#121212" />
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8b6cff" />
+      <stop offset="0.55" stop-color="#5b3df5" />
+      <stop offset="1" stop-color="#3a1fc4" />
     </linearGradient>
+    <radialGradient id="glow" cx="0.22" cy="0.12" r="0.75">
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.32" />
+      <stop offset="1" stop-color="#ffffff" stop-opacity="0" />
+    </radialGradient>
     <linearGradient id="rim" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffffff" stop-opacity="0.16" />
-      <stop offset="0.5" stop-color="#ffffff" stop-opacity="0" />
+      <stop offset="0" stop-color="#ffffff" stop-opacity="0.35" />
+      <stop offset="0.4" stop-color="#ffffff" stop-opacity="0" />
     </linearGradient>
-    <linearGradient id="accent" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#ffbf6b" />
-      <stop offset="1" stop-color="#ff9a2e" />
-    </linearGradient>
+    <filter id="lift" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#1b0b6b" flood-opacity="0.45" />
+    </filter>
   </defs>
-  <rect x="32" y="32" width="960" height="960" rx="224" fill="url(#tile)" />
-  <rect x="33.5" y="33.5" width="957" height="957" rx="222.5" fill="none" stroke="url(#rim)" stroke-width="3" />
-  <!-- bars share a baseline at y=770; heights fall toward the centre and rise again: a V -->
-  <g fill="#f5f4f0">
-    <rect x="212" y="254" width="88" height="516" rx="44" />
-    <rect x="344" y="364" width="88" height="406" rx="44" />
-    <rect x="608" y="364" width="88" height="406" rx="44" />
-    <rect x="740" y="254" width="88" height="516" rx="44" />
+  <rect x="32" y="32" width="960" height="960" rx="232" fill="url(#tile)" />
+  <rect x="32" y="32" width="960" height="960" rx="232" fill="url(#glow)" />
+  <rect x="34" y="34" width="956" height="956" rx="230" fill="none" stroke="url(#rim)" stroke-width="4" />
+  <g filter="url(#lift)" fill="#ffffff">
+    <path d="M318 322 L512 706" stroke="#ffffff" stroke-width="128" stroke-linecap="round" fill="none" />
+    <circle cx="590" cy="550" r="58" />
+    <circle cx="656" cy="418" r="48" opacity="0.78" />
+    <circle cx="710" cy="306" r="38" opacity="0.55" />
   </g>
-  <rect x="476" y="494" width="88" height="276" rx="44" fill="url(#accent)" />
 </svg>

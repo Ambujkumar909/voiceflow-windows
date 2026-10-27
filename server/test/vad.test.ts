@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { test } from 'node:test'
-import { hasSpeech } from './vad.ts'
+import { hasSpeech } from '../src/core/vad.ts'
 
 const noise = (amp: number, seconds = 5): Float32Array => Float32Array.from({ length: 16000 * seconds }, () => (Math.random() * 2 - 1) * amp)
 

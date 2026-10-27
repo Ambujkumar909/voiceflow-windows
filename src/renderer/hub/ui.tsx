@@ -1,6 +1,35 @@
-import { useEffect, useRef, type ReactNode } from 'react'
+import { useEffect, useId, useRef, type ReactNode } from 'react'
 
 export const api = window.api.settings
+
+/** The VoiceFlow mark (same drawing as build/icon.svg, simplified for small sizes). */
+export function Logo({ size = 28 }: { size?: number }) {
+  const id = useId()
+  return (
+    <svg className="brand-mark" width={size} height={size} viewBox="0 0 1024 1024" aria-hidden>
+      <defs>
+        <linearGradient id={id} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#8b6cff" />
+          <stop offset="0.55" stopColor="#5b3df5" />
+          <stop offset="1" stopColor="#3a1fc4" />
+        </linearGradient>
+      </defs>
+      <rect x="32" y="32" width="960" height="960" rx="232" fill={`url(#${id})`} />
+      <path d="M318 322 L512 706" stroke="#fff" strokeWidth="128" strokeLinecap="round" />
+      <circle cx="590" cy="550" r="58" fill="#fff" />
+      <circle cx="656" cy="418" r="48" fill="#fff" opacity="0.78" />
+      <circle cx="710" cy="306" r="38" fill="#fff" opacity="0.55" />
+    </svg>
+  )
+}
+
+export function Wordmark() {
+  return (
+    <span className="brand-name">
+      Voice<b>Flow</b>
+    </span>
+  )
+}
 
 /** Hold keys / accelerator → keycap chips, e.g. "Ctrl+Win" → [Ctrl] + [Win]. */
 export function Keys({ combo, small }: { combo: string; small?: boolean }) {

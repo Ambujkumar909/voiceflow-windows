@@ -1,4 +1,4 @@
-import type { SttProvider } from './index'
+import type { SttProvider } from './local-whisper'
 
 /** 16-bit PCM WAV, 16 kHz mono. */
 export function encodeWav(pcm: Float32Array, rate = 16000): Buffer {

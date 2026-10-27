@@ -27,14 +27,8 @@ export type OverlayCommand =
   | { cmd: 'arm'; deviceId: string; processing: AudioProcessing }
   | { cmd: 'disarm' }
 
-/** Encrypted API keys: speech-to-text (OpenAI-compatible), xAI streaming, and the cleanup LLM. */
-export type KeySlot = 'deepgram' | 'openai' | 'xai' | 'llm'
-
-export interface PolishOptions {
-  enabled: boolean
-  baseUrl: string
-  model: string
-}
+/** Secrets kept encrypted on this PC (Windows DPAPI). Only the VoiceFlow session's refresh token. */
+export type KeySlot = 'session'
 
 export interface CleanupOptions {
   removeFillers: boolean
@@ -51,17 +45,14 @@ export interface Settings {
   /** Keep the mic open with a 0.5 s in-memory pre-roll so the first word is never clipped. */
   instantMic: boolean
   audioProcessing: AudioProcessing
-  provider: 'deepgram' | 'xai' | 'local-whisper' | 'openai'
-  deepgramRegion: 'auto' | 'eu' | 'us'
-  deepgramModel: string
-  localModel: string
-  xaiUrl: string
-  xaiModel: string
-  /** Words to recognize (sent to the engine as keyterms) and misspellings to fix. */
+  /** VoiceFlow server (https; http only for localhost during development). */
+  serverUrl: string
+  /** Signed-in account, for display. The session itself is the encrypted refresh token. */
+  accountEmail: string
+  /** Words to recognize (sent to the engine as keyterms) and misspellings to fix. Synced to the server. */
   dictionary: DictEntry[]
-  polish: PolishOptions
-  apiBaseUrl: string
-  apiModel: string
+  /** Server-side AI cleanup (self-corrections, punctuation); never rewrites words. */
+  polish: boolean
   language: string
   insertMode: 'paste' | 'type'
   restoreClipboard: boolean
@@ -76,7 +67,7 @@ export interface Settings {
 
 /** What the renderer sees: settings minus secrets. */
 export interface PublicSettings extends Settings {
-  keys: Record<KeySlot, boolean>
+  signedIn: boolean
 }
 
 export interface DictEntry {
@@ -107,7 +98,9 @@ export interface Status {
   shortcutError: string
   holdError: string
   micAccess: string
-  provider: string
+  /** Connection to the VoiceFlow server, e.g. "connected". */
+  engine: string
+  accountError: string
   logPath: string
   encryptionAvailable: boolean
 }

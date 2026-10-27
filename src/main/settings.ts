@@ -19,17 +19,11 @@ export const DEFAULTS: Settings = {
   micDeviceId: '',
   instantMic: true,
   audioProcessing: 'gain',
-  provider: 'local-whisper',
-  localModel: 'onnx-community/whisper-base',
-  deepgramRegion: 'auto',
-  deepgramModel: 'nova-3',
-  xaiUrl: 'wss://api.x.ai/v1/stt',
-  xaiModel: 'grok-voice-transcribe-2.0',
+  // Set at build time for a deployment (MAIN_VITE_SERVER_URL=https://api.example.com npm run dist).
+  serverUrl: (import.meta as unknown as { env?: Record<string, string | undefined> }).env?.MAIN_VITE_SERVER_URL || 'http://127.0.0.1:8787',
+  accountEmail: '',
   dictionary: [],
-  // Light cleanup only; see polish.ts. Groq gpt-oss-20b: ~1000 tokens/s, $0.075/$0.30 per 1M tokens (Oct 2026).
-  polish: { enabled: false, baseUrl: 'https://api.groq.com/openai/v1', model: 'openai/gpt-oss-20b' },
-  apiBaseUrl: 'https://api.openai.com/v1',
-  apiModel: 'whisper-1',
+  polish: false,
   language: 'en',
   insertMode: 'paste',
   restoreClipboard: true,
@@ -43,14 +37,12 @@ export const DEFAULTS: Settings = {
 
 const ENUMS: Partial<Record<keyof Settings, readonly string[]>> = {
   holdKeys: HOLD_KEYS,
-  provider: ['deepgram', 'xai', 'local-whisper', 'openai'],
-  deepgramRegion: ['auto', 'eu', 'us'],
   theme: ['system', 'light', 'dark'],
   audioProcessing: ['raw', 'gain', 'denoise'],
   insertMode: ['paste', 'type']
 }
 
-const SLOTS: KeySlot[] = ['deepgram', 'openai', 'xai', 'llm']
+const SLOTS: KeySlot[] = ['session']
 type Stored = Settings & { keysEnc: Partial<Record<KeySlot, string>> }
 let current: Stored = { ...structuredClone(DEFAULTS), keysEnc: {} }
 const file = (): string => join(app.getPath('userData'), 'settings.json')
@@ -110,7 +102,6 @@ export function loadSettings(): Settings {
     const raw = JSON.parse(readFileSync(file(), 'utf8'))
     const keysEnc: Stored['keysEnc'] = {}
     for (const s of SLOTS) if (typeof raw.keysEnc?.[s] === 'string') keysEnc[s] = raw.keysEnc[s]
-    if (typeof raw.apiKeyEnc === 'string') keysEnc.openai ??= raw.apiKeyEnc // v0.1 stored a single key
     if (typeof raw.vocabulary === 'string' && !Array.isArray(raw.dictionary)) // v0.2 stored a comma-separated list
       raw.dictionary = raw.vocabulary.split(',').map((w: string) => ({ word: w }))
     current = { ...sanitize(raw, DEFAULTS), keysEnc }
@@ -126,7 +117,7 @@ export function getSettings(): Settings {
 }
 
 export function publicSettings(): PublicSettings {
-  return { ...getSettings(), keys: { deepgram: !!current.keysEnc.deepgram, openai: !!current.keysEnc.openai, xai: !!current.keysEnc.xai, llm: !!current.keysEnc.llm } }
+  return { ...getSettings(), signedIn: !!current.keysEnc.session }
 }
 
 export function saveSettings(patch: unknown): Settings {

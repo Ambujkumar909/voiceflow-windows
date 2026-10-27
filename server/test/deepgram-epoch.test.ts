@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { Epoch, type DgResult } from './deepgram-epoch.ts'
+import { Epoch, type DgResult } from '../src/core/deepgram-epoch.ts'
 
 const res = (start: number, duration: number, text: string, extra: Partial<DgResult> = {}): DgResult => ({
   type: 'Results',

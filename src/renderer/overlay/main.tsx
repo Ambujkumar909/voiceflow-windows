@@ -25,16 +25,15 @@ async function run(c: Parameters<Parameters<typeof api.onCommand>[0]>[0]): Promi
 }
 
 /*
- * The pill. Sizes, colours and timings follow the reference app's observed design (they were
- * measured, not copied); drawing and code are our own. States: rest 40×8 → ready (hover) 50×30 →
- * ptt (holding) 73×30 → popo (hands-free, with cancel/finish) 102.5×30 → processing 98×30;
- * errors flash a red border for 500 ms and show a card above.
+ * The pill, in VoiceFlow's own look: dark glass with a violet glow while listening.
+ * States: rest 36×7 → ready (hover) 50×28 → ptt (holding) 86×32 → popo (hands-free, with
+ * cancel/finish) 120×32 → processing 92×32; errors flash a red ring for 500 ms and show a card above.
  */
 type Look = 'rest' | 'ready' | 'ptt' | 'popo' | 'processing' | 'error'
 
-const BARS = 10
-const SHAPE = Array.from({ length: BARS }, (_, i) => Math.max(0, 1 - (i - 4.5) ** 2 / 48)) // gentle dome
-const DELAYS = [0, 0.1, 0.2, 0.3, 0.4, -0.5, -0.4, -0.3, -0.2, -0.1]
+const BARS = 7
+const SHAPE = Array.from({ length: BARS }, (_, i) => Math.max(0, 1 - (i - 3) ** 2 / 22)) // gentle dome
+const DELAYS = [0, 0.14, 0.28, 0.42, -0.42, -0.28, -0.14]
 
 /** Mic level → --amp on the waveform: dB over an adaptive noise floor, smoothed per frame. */
 function Waveform({ active }: { active: boolean }) {
@@ -95,7 +94,7 @@ const XIcon = () => (
 )
 const CheckIcon = () => (
   <svg width="12" height="12" viewBox="0 0 12 12" aria-hidden>
-    <path d="M2.5 6.5l2.5 2.5 4.5-6" stroke="#1A1A1A" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+    <path d="M2.5 6.5l2.5 2.5 4.5-6" stroke="#FFFFFF" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" />
   </svg>
 )
 

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { test } from 'node:test'
-import { acceptable } from './polish.ts'
+import { acceptable } from '../src/core/polish.ts'
 
 test('accepts punctuation, filler removal and self-corrections', () => {
   assert.ok(acceptable('um so i think we should uh ship it', 'So I think we should ship it.'))

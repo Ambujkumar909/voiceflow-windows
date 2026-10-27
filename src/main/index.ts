@@ -2,18 +2,18 @@ import { app, ipcMain, nativeTheme, powerMonitor, safeStorage, session, systemPr
 import { cpSync, existsSync, renameSync } from 'node:fs'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
-import type { KeySlot, Status } from '../shared/types'
+import type { Status } from '../shared/types'
+import { accountStatus, changePassword, deleteAccount, listDevices, onAccountChange, signIn, signOut, signOutDevice, signOutEverywhere, signUp, syncPrefs } from './account'
 import { holdPressed, holdReleased, initDictation, onDictationState, primeEngine, setMicSuspended, syncMic, toggleDictation } from './dictation'
-import { closeDeepgram, deepgramStatus } from './stt/deepgram'
+import { connectStream, disconnectStream, streamStatus } from './stt/voiceflow'
 import { initHoldHook, setHoldKeys, stopHoldHook } from './hold'
 import { clearHistory, deleteHistory, getHistory, getStats } from './history'
 import { disposeInserter, warmupInserter } from './insert'
 import { log, logPath } from './log'
-import { makeStimulus, runFrontendBench, stimulusPath } from './frontend-bench'
-import { getSettings, loadSettings, publicSettings, saveSettings, setApiKey } from './settings'
+import { makeStimulus, runFrontendBench, stimulusPath } from './dev/frontend-bench'
+import { getSettings, loadSettings, publicSettings, saveSettings } from './settings'
 import { registerToggle, shortcutStatus, unregisterAll } from './shortcut'
-import { getProvider } from './stt'
-import { createOverlay, createTray, positionOverlay, setTrayStatus, showHub } from './windows'
+import { createOverlay, createTray, notifyHub, positionOverlay, setTrayStatus, showHub } from './windows'
 
 process.on('uncaughtException', (e) => log('error', 'uncaught exception', { error: String(e?.stack ?? e) }))
 process.on('unhandledRejection', (e) => log('error', 'unhandled rejection', { error: String(e) }))
@@ -33,7 +33,7 @@ process.on('unhandledRejection', (e) => log('error', 'unhandled rejection', { er
   }
 }
 
-// Models live in the real profile; the self-test gets a throwaway profile for everything else.
+// Dev tooling models (benchmarks) live in the real profile; tests get a throwaway profile.
 process.env.VOICEFLOW_MODELS ??= join(app.getPath('userData'), 'models')
 const frontendBench = process.argv.includes('--bench-frontend') && !app.isPackaged
 if (process.argv.some((a) => a === '--selftest' || a === '--bench' || a === '--bench-frontend') && !app.isPackaged) app.setPath('userData', join(app.getPath('temp'), 'voiceflow-selftest'))
@@ -73,12 +73,6 @@ function applyHoldKeys(): void {
   holdError = setHoldKeys(getSettings().holdKeys).error
 }
 
-function warmProvider(): void {
-  getProvider(getSettings())
-    .warmup?.()
-    .catch(() => {}) // status() reports the error
-}
-
 function status(): Status {
   const s = shortcutStatus()
   return {
@@ -86,7 +80,8 @@ function status(): Status {
     shortcutError: s.error,
     holdError,
     micAccess: systemPreferences.getMediaAccessStatus('microphone'),
-    provider: getSettings().provider === 'deepgram' ? 'Deepgram Nova-3 · ' + deepgramStatus() : getProvider(getSettings()).status(),
+    engine: accountStatus().signedIn ? streamStatus() : 'signed out',
+    accountError: accountStatus().error,
     logPath: logPath(),
     encryptionAvailable: safeStorage.isEncryptionAvailable()
   }
@@ -94,18 +89,10 @@ function status(): Status {
 
 app.whenReady().then(async () => {
   if (!primary) return
-  // Dev helper: store a key from the environment in the real profile (encrypted), then exit.
-  if (process.argv.includes('--import-deepgram-key') && !app.isPackaged) {
-    loadSettings()
-    setApiKey('deepgram', process.env.VOICEFLOW_IMPORT_KEY ?? '')
-    saveSettings({ provider: 'deepgram' })
-    console.log('IMPORTED deepgram key; provider =', getSettings().provider, '; on disk encrypted:', !JSON.stringify(publicSettings()).includes(process.env.VOICEFLOW_IMPORT_KEY ?? '~'))
-    return app.exit(0)
-  }
   loadSettings()
   nativeTheme.themeSource = getSettings().theme // drives prefers-color-scheme in every window
   log('info', 'starting', { version: app.getVersion(), electron: process.versions.electron })
-  if (process.argv.includes('--bench') && !app.isPackaged) return (await import('./bench')).runBench()
+  if (process.argv.includes('--bench') && !app.isPackaged) return (await import('./dev/bench')).runBench()
   if (frontendBench) {
     session.defaultSession.setPermissionRequestHandler((_wc, permission, cb) => cb(permission === 'media'))
     session.defaultSession.setPermissionCheckHandler((_wc, permission) => permission === 'media')
@@ -135,14 +122,32 @@ app.whenReady().then(async () => {
     if (after.theme !== before.theme) nativeTheme.themeSource = after.theme
     if (after.instantMic !== before.instantMic || after.micDeviceId !== before.micDeviceId || after.audioProcessing !== before.audioProcessing) syncMic()
     if (after.openAtLogin !== before.openAtLogin) app.setLoginItemSettings({ openAtLogin: after.openAtLogin, args: ['--hidden'] })
-    if (after.provider !== before.provider || after.localModel !== before.localModel) warmProvider()
-    if (after.provider !== 'deepgram') closeDeepgram()
-    else primeEngine() // reconnects if language, region or dictionary changed
+    // What the server applies (language, dictionary, cleanup, AI cleanup) is pushed to it.
+    if (JSON.stringify([after.language, after.dictionary, after.cleanup, after.polish]) !== JSON.stringify([before.language, before.dictionary, before.cleanup, before.polish])) void syncPrefs()
+    if (after.serverUrl !== before.serverUrl) (disconnectStream(), connectStream())
     return { settings: publicSettings(), error: shortcut.error }
   })
-  handle('settings:setApiKey', (slot: unknown, key: unknown) => {
-    setApiKey(slot as KeySlot, typeof key === 'string' ? key : '')
-    if (slot === 'deepgram') (closeDeepgram(), primeEngine())
+  // Account calls answer { ok, error, data } so the UI can show the server's message.
+  const result = async (f: () => Promise<unknown>): Promise<{ ok: boolean; error: string; data?: unknown }> => {
+    try {
+      return { ok: true, error: '', data: await f() }
+    } catch (e) {
+      return { ok: false, error: (e as Error).message }
+    }
+  }
+  const str = (v: unknown, max: number): string => String(v ?? '').slice(0, max)
+  handle('account:signIn', (email: unknown, password: unknown) => result(() => signIn(str(email, 254), str(password, 200))))
+  handle('account:signUp', (email: unknown, password: unknown) => result(() => signUp(str(email, 254), str(password, 200))))
+  handle('account:devices', () => result(() => listDevices()))
+  handle('account:signOutDevice', (id: unknown) => result(() => signOutDevice(str(id, 64))))
+  handle('account:signOutEverywhere', () => result(() => signOutEverywhere()))
+  handle('account:changePassword', (cur: unknown, next: unknown) => result(() => changePassword(str(cur, 200), str(next, 200))))
+  handle('account:delete', (password: unknown) => result(() => deleteAccount(str(password, 200))))
+  handle('account:signOut', () => signOut())
+  onAccountChange(() => {
+    if (accountStatus().signedIn) connectStream(true)
+    else disconnectStream()
+    notifyHub() // sign-in screen ⇄ app, at once
   })
   handle('status:get', () => status())
   handle('history:get', () => getHistory())
@@ -156,8 +161,7 @@ app.whenReady().then(async () => {
   applyHoldKeys()
   createTray({ toggle: toggleDictation, settings: showHub, quit: () => app.quit() })
   warmupInserter().catch((e) => log('error', 'insert helper failed to start', { error: String(e) }))
-  warmProvider() // the local model is also the offline fallback
-  primeEngine()
+  connectStream() // open the server connection now (no-op when signed out)
   powerMonitor.on('resume', primeEngine)
   // Never hold the microphone while the PC sleeps or is locked.
   powerMonitor.on('suspend', () => setMicSuspended(true))
@@ -181,7 +185,7 @@ app.on('web-contents-created', (_e, wc) => {
 app.on('will-quit', () => {
   unregisterAll()
   stopHoldHook()
-  closeDeepgram()
+  disconnectStream()
   disposeInserter()
   log('info', 'shutdown')
 })

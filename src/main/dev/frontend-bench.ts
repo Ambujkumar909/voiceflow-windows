@@ -11,8 +11,8 @@ import { app, BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { edits, words } from './bench'
-import { localWhisper } from './stt/local-whisper'
-import { encodeWav } from './stt/openai'
+import { localWhisper } from './local-whisper'
+import { encodeWav } from './openai'
 
 const SPEECH_RMS = 0.006 // ≈ -44 dBFS: a soft voice at laptop-mic distance
 const NOISE_RMS = 0.0015 // steady room/fan noise ≈ -56 dBFS (≈12 dB SNR)

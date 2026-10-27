@@ -14,9 +14,8 @@
 import { app, BrowserWindow } from 'electron'
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
-import type { SttProvider } from './stt'
-import { localWhisper } from './stt/local-whisper'
-import { encodeWav, openAiCompatible } from './stt/openai'
+import { localWhisper, type SttProvider } from './local-whisper'
+import { encodeWav, openAiCompatible } from './openai'
 
 function cloudXai(): SttProvider {
   return {

@@ -1,6 +1,6 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { cleanup } from './cleanup.ts'
+import { cleanup } from '../src/core/cleanup.ts'
 
 const all = { removeFillers: true, capitalize: true, finalPunctuation: true, spokenCommands: true, trailingSpace: false }
 const none = { removeFillers: false, capitalize: false, finalPunctuation: false, spokenCommands: false, trailingSpace: false }
@@ -27,7 +27,7 @@ test('options off leaves words alone', () => {
 })
 
 test('dictionary replaces misspellings as whole words, any case', async () => {
-  const { applyDictionary } = await import('./cleanup.ts')
+  const { applyDictionary } = await import('../src/core/cleanup.ts')
   const dict = [{ word: 'Kubernetes', misspelling: 'cooper netties' }, { word: 'VoiceFlow' }, { word: 'C++', misspelling: 'see plus plus' }]
   assert.equal(applyDictionary('Deploy to Cooper Netties now.', dict), 'Deploy to Kubernetes now.')
   assert.equal(applyDictionary('I like see plus plus.', dict), 'I like C++.')

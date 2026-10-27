@@ -35,43 +35,52 @@ body,
   align-items: center;
   justify-content: center;
   gap: 4px;
-  width: 73px;
-  height: 30px;
-  border-radius: 22.5px;
-  background: #000;
-  border: 1px solid #30302f;
+  width: 86px;
+  height: 32px;
+  border-radius: 16px;
+  background: rgba(14, 12, 26, 0.94);
+  border: 1px solid rgba(143, 109, 255, 0.6);
+  box-shadow:
+    0 0 0 3px rgba(104, 71, 255, 0.16),
+    0 8px 22px -6px rgba(104, 71, 255, 0.65);
   overflow: hidden;
   cursor: default;
   transition: all var(--morph);
 }
 .pill.rest {
-  width: 40px;
-  height: 8px;
+  width: 36px;
+  height: 7px;
   border-radius: 6px;
-  background: rgba(0, 0, 0, 0.5);
-  border-color: rgba(255, 255, 255, 0.5);
+  background: rgba(20, 16, 40, 0.55);
+  border-color: rgba(185, 166, 255, 0.6);
+  box-shadow: none;
 }
 .pill.rest .wave {
   opacity: 0;
 }
 .pill.ready {
   width: 50px;
+  height: 28px;
   cursor: pointer;
+  box-shadow: 0 6px 16px -6px rgba(104, 71, 255, 0.5);
 }
 .pill.ready:hover {
-  background: #30302f;
-  border-color: #5b5b59;
+  background: #1c1730;
+  border-color: rgba(185, 166, 255, 0.85);
 }
 .pill.popo {
-  width: 102.5px;
+  width: 120px;
 }
 .pill.processing {
-  width: 98px;
+  width: 92px;
   padding: 6px 12px;
+  border-color: rgba(143, 109, 255, 0.35);
+  box-shadow: 0 8px 22px -8px rgba(104, 71, 255, 0.5);
 }
 .pill.error {
-  width: 91px;
-  border: 1.5px solid #ee6a6a;
+  width: 86px;
+  border: 1.5px solid #f05252;
+  box-shadow: 0 0 0 3px rgba(240, 82, 82, 0.18);
 }
 .pill.suppressed {
   opacity: 0;
@@ -95,29 +104,29 @@ body,
   flex: none;
 }
 .pill.popo .btn {
-  width: 18px;
-  height: 18px;
+  width: 20px;
+  height: 20px;
 }
 .btn.cancel {
-  background: #4d4a42;
+  background: #2a2540;
 }
 .btn.finish {
-  background: #fcfcfb;
+  background: linear-gradient(135deg, #8f6dff, #6847ff);
 }
 
-/* Waveform: 10 bars, 2 px wide, 2 px gap, resting as 2×2 dots, scaled from the centre. */
+/* Waveform: 7 bars, 3 px wide, 3 px gap, resting as 3×3 dots, scaled from the centre. */
 .wave {
   --amp: 1;
   display: flex;
   align-items: center;
-  gap: 2px;
-  height: 18px;
+  gap: 3px;
+  height: 20px;
   transition: opacity var(--morph);
 }
 .wave span {
   display: block;
-  width: 2px;
-  height: 2px;
+  width: 3px;
+  height: 3px;
   transform: scaleY(calc(var(--amp) * var(--shape)));
   transform-origin: center;
 }
@@ -125,11 +134,11 @@ body,
   display: block;
   width: 100%;
   height: 100%;
-  border-radius: 0.5px;
-  background: rgba(255, 255, 255, 0.4);
+  border-radius: 1.5px;
+  background: rgba(185, 166, 255, 0.45);
 }
 .wave.live span i {
-  background: #fff;
+  background: linear-gradient(#ffffff, #c9b8ff);
 }
 .wave.moving span i {
   animation: wobble 1s ease-in-out infinite;
@@ -168,15 +177,15 @@ body,
   width: 2px;
   height: 5px;
   border-radius: 1px;
-  background: rgba(163, 148, 199, 0.88);
+  background: rgba(185, 166, 255, 0.95);
   animation: spoke 1.1s linear infinite;
 }
 @keyframes spoke {
   from {
-    background: rgba(163, 148, 199, 0.88);
+    background: rgba(185, 166, 255, 0.95);
   }
   to {
-    background: rgba(163, 148, 199, 0.15);
+    background: rgba(185, 166, 255, 0.15);
   }
 }
 
@@ -185,8 +194,8 @@ body,
   gap: 4px;
   padding: 6px 14px;
   white-space: nowrap;
-  background: #000;
-  border: 1px solid #30302f;
+  background: rgba(14, 12, 26, 0.96);
+  border: 1px solid rgba(143, 109, 255, 0.3);
   border-radius: 34px;
   animation: fade 120ms ease-out;
 }
@@ -199,9 +208,10 @@ body,
   max-width: 440px;
   padding: 10px 14px;
   box-sizing: border-box;
-  background: #000;
-  border: 1px solid #30302f;
-  border-radius: 20px;
+  background: rgba(14, 12, 26, 0.96);
+  border: 1px solid rgba(143, 109, 255, 0.3);
+  border-radius: 16px;
+  box-shadow: 0 10px 28px -10px rgba(104, 71, 255, 0.5);
   font-size: 14px;
   line-height: 19px;
   text-align: center;

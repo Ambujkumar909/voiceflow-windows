@@ -1,5 +1,5 @@
 import { contextBridge, ipcRenderer, type IpcRendererEvent } from 'electron'
-import type { HistoryEntry, KeySlot, Stats, OverlayAction, OverlayCommand, OverlayState, PublicSettings, Settings, Status } from '../shared/types'
+import type { HistoryEntry, Stats, OverlayAction, OverlayCommand, OverlayState, PublicSettings, Settings, Status } from '../shared/types'
 
 function on<T>(channel: string, fn: (v: T) => void): () => void {
   const h = (_e: IpcRendererEvent, v: T): void => fn(v)
@@ -7,7 +7,10 @@ function on<T>(channel: string, fn: (v: T) => void): () => void {
   return () => ipcRenderer.removeListener(channel, h)
 }
 
-/** The only surface renderers get. No secrets cross this bridge (only which keys are set). */
+type Result<T = unknown> = { ok: boolean; error: string; data?: T }
+export type Device = { id: string; device: string; createdAt: string; lastUsedAt: string; current: boolean }
+
+/** The only surface renderers get. No secrets cross this bridge (only whether a session exists). */
 const api = {
   overlay: {
     onState: (fn: (s: OverlayState) => void) => on('overlay:state', fn),
@@ -22,7 +25,14 @@ const api = {
   settings: {
     get: (): Promise<PublicSettings> => ipcRenderer.invoke('settings:get'),
     save: (patch: Partial<Settings>): Promise<{ settings: PublicSettings; error: string }> => ipcRenderer.invoke('settings:save', patch),
-    setApiKey: (slot: KeySlot, key: string): Promise<void> => ipcRenderer.invoke('settings:setApiKey', slot, key),
+    signIn: (email: string, password: string): Promise<Result> => ipcRenderer.invoke('account:signIn', email, password),
+    signUp: (email: string, password: string): Promise<Result> => ipcRenderer.invoke('account:signUp', email, password),
+    devices: (): Promise<Result<Device[]>> => ipcRenderer.invoke('account:devices'),
+    signOutDevice: (id: string): Promise<Result> => ipcRenderer.invoke('account:signOutDevice', id),
+    signOutEverywhere: (): Promise<Result> => ipcRenderer.invoke('account:signOutEverywhere'),
+    changePassword: (current: string, next: string): Promise<Result> => ipcRenderer.invoke('account:changePassword', current, next),
+    deleteAccount: (password: string): Promise<Result> => ipcRenderer.invoke('account:delete', password),
+    signOut: (): Promise<void> => ipcRenderer.invoke('account:signOut'),
     status: (): Promise<Status> => ipcRenderer.invoke('status:get'),
     history: (): Promise<HistoryEntry[]> => ipcRenderer.invoke('history:get'),
     clearHistory: (): Promise<void> => ipcRenderer.invoke('history:clear'),

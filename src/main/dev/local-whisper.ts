@@ -1,7 +1,13 @@
 import { app } from 'electron'
 import { join } from 'node:path'
 import { log } from '../log'
-import type { SttProvider } from './index'
+/** Developer tooling only (benchmarks); the shipped app transcribes on the VoiceFlow server. */
+export interface SttProvider {
+  id: string
+  transcribe(pcm16k: Float32Array, language: string): Promise<string>
+  warmup?(): Promise<void>
+  status(): string
+}
 
 // One loaded model at a time, shared across provider instances.
 type Asr = (audio: Float32Array, opts: object) => Promise<{ text: string } | { text: string }[]>

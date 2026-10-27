@@ -64,7 +64,7 @@ export function positionOverlay(win: BrowserWindow): void {
 }
 
 // Hub colors follow the theme: window background = sidebar/title bar sand, symbols = text color.
-const hubColors = (): { bg: string; fg: string } => (nativeTheme.shouldUseDarkColors ? { bg: '#202020', fg: '#e9e8e1' } : { bg: '#f5f4f0', fg: '#1a1a1a' })
+const hubColors = (): { bg: string; fg: string } => (nativeTheme.shouldUseDarkColors ? { bg: '#0b0b10', fg: '#ececf3' } : { bg: '#f4f4f7', fg: '#101018' })
 export const TITLEBAR_H = 44
 
 let hubWin: BrowserWindow | null = null

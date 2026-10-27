@@ -1,18 +1,13 @@
 import { app, globalShortcut, ipcMain, Menu, type BrowserWindow } from 'electron'
 import type { DictationState, OverlayAction, OverlayCommand, OverlayState } from '../shared/types'
-import { applyDictionary, cleanup } from './cleanup'
+import { isSignedIn, transcribeClip } from './account'
+import { encodeWav } from './dev/openai'
 import { addHistory, recordDictation } from './history'
 import { foregroundApp, insertText } from './insert'
 import { log } from './log'
-import { polish } from './polish'
-import { hasSpeech } from './vad'
-import { getApiKey, getSettings } from './settings'
+import { getSettings } from './settings'
+import { beginStream, primeStream, type StreamSession } from './stt/voiceflow'
 import { notifyHub } from './windows'
-import { getProvider } from './stt'
-import { localWhisper } from './stt/local-whisper'
-import { openXaiStream, type StreamSession } from './stt/xai'
-import { beginDeepgram, warmDeepgram, type DgConfig } from './stt/deepgram'
-import { encodeWav } from './stt/openai'
 import { writeFileSync } from 'node:fs'
 
 const MAX_RECORDING_MS = 5 * 60_000
@@ -159,18 +154,9 @@ export function holdReleased(aborted: boolean): void {
   lastTapAt = tap && !aborted ? Date.now() : 0
 }
 
-export const deepgramConfig = (s = getSettings()): DgConfig => ({
-  key: getApiKey('deepgram'),
-  region: s.deepgramRegion,
-  model: s.deepgramModel,
-  language: s.language,
-  keyterms: s.dictionary.map((d) => d.word)
-})
-
-/** Get the streaming connection ready before it's needed (cheap no-op when it already is). */
+/** A dictation may follow (first hotkey key, pill hover): have the server warm its speech socket. */
 export function primeEngine(): void {
-  const s = getSettings()
-  if (s.provider === 'deepgram' && state !== 'recording') warmDeepgram(deepgramConfig(s))
+  if (state !== 'recording') primeStream()
 }
 
 /** Keep the microphone open with a short in-memory pre-roll (setting), or release it. */
@@ -193,25 +179,10 @@ function start(how: typeof mode): void {
   setState('recording')
   lastTapAt = 0
   const s = getSettings()
-  stream = null
-  if (s.provider === 'deepgram') {
-    const cfg = deepgramConfig(s)
-    if (!cfg.key) return fail('No Deepgram API key. Add it in Settings → Speech engine.')
-    stream = beginDeepgram(cfg, sendLive)
-  } else if (s.provider === 'xai') {
-    const apiKey = getApiKey('xai')
-    if (!apiKey) return fail('No xAI API key. Add it in Settings.')
-    // Open the socket now so transcription runs while the user is still speaking.
-    stream = openXaiStream({
-      url: s.xaiUrl,
-      model: s.xaiModel,
-      apiKey,
-      language: s.language,
-      keyterms: s.dictionary.map((d) => d.word),
-      onText: sendLive
-    })
-  }
-  command({ cmd: 'start', deviceId: s.micDeviceId, stream: !!stream, processing: s.audioProcessing })
+  if (!isSignedIn()) return fail('Sign in to VoiceFlow first (Settings → Account).')
+  // Audio streams to the VoiceFlow server while the user speaks; it relays to the speech engine.
+  stream = beginStream(s.language, sendLive)
+  command({ cmd: 'start', deviceId: s.micDeviceId, stream: true, processing: s.audioProcessing })
   // Escape cancels, but only while recording so it is not stolen from other apps the rest of the time.
   globalShortcut.register('Escape', cancelDictation)
   maxTimer = setTimeout(() => void stop(), MAX_RECORDING_MS)
@@ -245,48 +216,39 @@ async function stop(): Promise<void> {
     const rms = Math.sqrt(pcm.reduce((a, v) => a + v * v, 0) / (pcm.length || 1))
     log('info', 'audio captured', { durationMs, rms: +rms.toFixed(4) })
     if (process.env.VOICEFLOW_DUMP_AUDIO) writeFileSync(process.env.VOICEFLOW_DUMP_AUDIO, encodeWav(pcm)) // dev: inspect what the mic heard
-    // The cloud engine judges quiet speech far better than an energy check, so streamed audio
-    // always goes to it; the check only guards the local engine, which invents text on silence.
-    if (pcm.length < MIN_SAMPLES || (!session && !hasSpeech(pcm))) {
+    if (pcm.length < MIN_SAMPLES) {
       session?.abort()
       return fail('No speech detected')
     }
 
     const s = getSettings()
     const started = Date.now()
-    let providerId = session ? s.provider : getProvider(s).id
-    let raw: string
+    let via = 'stream'
+    let text: string
     try {
-      raw = session ? await session.finish() : await getProvider(s).transcribe(pcm, s.language)
+      text = await session!.finish() // already processed by the server (dictionary, cleanup, AI cleanup)
     } catch (e) {
-      if (!session) throw e
-      // Cloud failed (network, key, outage): the full clip is still here, so transcribe it locally.
-      log('warn', 'streaming failed, using local Whisper', { error: String((e as Error).message) })
-      providerId = 'local-whisper (fallback)'
-      if (!hasSpeech(pcm)) return fail('No speech detected')
-      raw = await localWhisper(s.localModel).transcribe(pcm, s.language)
-    }
-    const sttMs = Date.now() - started
-
-    let polished = raw
-    const llmKey = s.polish.enabled ? getApiKey('llm') : ''
-    if (llmKey && raw.trim()) {
-      const t = Date.now()
+      const code = (e as { code?: string }).code
+      if (code === 'no_speech') return fail('No speech detected')
+      if (code !== 'connection' && code !== 'timeout') return fail((e as Error).message)
+      // The live stream broke: the whole clip is still here, so upload it once over HTTPS.
+      log('warn', 'stream failed, uploading the clip', { error: String((e as Error).message) })
+      via = 'upload'
       try {
-        const r = await polish(raw, { baseUrl: s.polish.baseUrl, model: s.polish.model, apiKey: llmKey })
-        polished = r.text
-        log('info', 'cleanup LLM', { ms: Date.now() - t, applied: r.applied })
-      } catch (e) {
-        log('warn', 'cleanup LLM failed, using the plain transcript', { error: String((e as Error).message) })
+        text = await transcribeClip(pcm, s.language)
+      } catch (e2) {
+        // Dictation is for typing now: nothing is queued for later. Say clearly what happened.
+        log('warn', 'upload failed', { error: String((e2 as Error).message) })
+        return fail("Can't reach VoiceFlow. Check your connection and try again.")
       }
     }
-    const text = cleanup(applyDictionary(polished, s.dictionary), s.cleanup)
-    log('info', 'transcribed', { provider: providerId, sttMs, totalMs: Date.now() - started, chars: text.length })
+    log('info', 'transcribed', { via, ms: Date.now() - started, chars: text.length })
     if (!text.trim()) return fail('No speech detected')
+    const raw = text
 
     const app = await foregroundApp()
     // Save before inserting so the transcript survives an insertion failure.
-    if (s.saveHistory) addHistory({ text, raw, durationMs, app, provider: providerId })
+    if (s.saveHistory) addHistory({ text, raw, durationMs, app, provider: 'voiceflow' + (via === 'upload' ? ' (upload)' : '') })
     recordDictation(text, durationMs)
     await insertText(text, s.insertMode, s.restoreClipboard)
     setState('success')

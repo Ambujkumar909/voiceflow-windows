@@ -1,16 +1,11 @@
-import { AudioLines, Settings2, SlidersHorizontal, X } from 'lucide-react'
+import { CircleUser, KeyRound, Laptop, LogOut, Settings2, SlidersHorizontal, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
-import { HOLD_KEYS, type KeySlot, type PublicSettings, type Settings, type Status } from '../../shared/types'
+import { HOLD_KEYS, type PublicSettings, type Settings, type Status } from '../../shared/types'
 import { api, Item, Keys, Modal, Switch, type Toast } from './ui'
 
 const LANGUAGES: [string, string][] = [
   ['en', 'English'], ['auto', 'Auto-detect'], ['es', 'Spanish'], ['fr', 'French'], ['de', 'German'], ['it', 'Italian'],
   ['pt', 'Portuguese'], ['nl', 'Dutch'], ['hi', 'Hindi'], ['ja', 'Japanese'], ['ko', 'Korean'], ['zh', 'Chinese'], ['ru', 'Russian']
-]
-const LOCAL_MODELS: [string, string][] = [
-  ['onnx-community/whisper-tiny', 'Whisper tiny'],
-  ['onnx-community/whisper-base', 'Whisper base'],
-  ['onnx-community/whisper-small', 'Whisper small']
 ]
 
 /** Keydown → Electron accelerator ("Alt+Shift+Space"); null until a usable combo is pressed. */
@@ -29,38 +24,199 @@ function toAccelerator(e: React.KeyboardEvent): string | null {
 }
 
 type Save = (patch: Partial<Settings>) => Promise<void>
-type Page = 'general' | 'system' | 'engine'
-
-/** Write-only key field: a saved key never comes back to the page, only whether one is set. */
-function KeyItem({ slot, label, placeholder, has, encryption, toast }: { slot: KeySlot; label: string; placeholder: string; has: boolean; encryption: boolean; toast: (t: Toast) => void }) {
-  const [v, setV] = useState('')
-  return (
-    <Item label={label} desc={has ? 'Saved, encrypted with Windows DPAPI' : encryption ? 'Not set' : 'OS encryption unavailable'} wide>
-      <span style={{ display: 'flex', gap: 8, width: '100%' }}>
-        <input className="input" type="password" placeholder={has ? '••••••••' : placeholder} value={v} onChange={(e) => setV(e.target.value)} autoComplete="off" aria-label={label} />
-        <button
-          className="btn secondary"
-          disabled={!v && !has}
-          onClick={async () => {
-            try {
-              await api.setApiKey(slot, v)
-              setV('')
-              toast({ kind: 'ok', text: v ? 'Key saved' : 'Key removed' })
-            } catch (err) {
-              toast({ kind: 'err', text: String((err as Error).message) })
-            }
-          }}
-        >
-          {v ? 'Save' : 'Remove'}
-        </button>
-      </span>
-    </Item>
-  )
-}
+type Page = 'account' | 'general' | 'system'
 
 /** Text field that saves on blur. */
 function Text({ value, onSave, label, placeholder }: { value: string; onSave: (v: string) => void; label: string; placeholder?: string }) {
   return <input className="input" defaultValue={value} placeholder={placeholder} aria-label={label} onBlur={(e) => e.target.value !== value && onSave(e.target.value)} />
+}
+
+type Device = { id: string; device: string; createdAt: string; lastUsedAt: string; current: boolean }
+
+const ago = (iso: string): string => {
+  const s = (Date.now() - new Date(iso).getTime()) / 1000
+  if (s < 90) return 'just now'
+  if (s < 3600) return `${Math.round(s / 60)} min ago`
+  if (s < 86400) return `${Math.round(s / 3600)} h ago`
+  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+}
+
+function ChangePasswordDialog({ onClose, toast }: { onClose: () => void; toast: (t: Toast) => void }) {
+  const [cur, setCur] = useState('')
+  const [next, setNext] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const submit = async (): Promise<void> => {
+    if (busy || !cur || next.length < 10) return
+    setBusy(true)
+    const r = await api.changePassword(cur, next)
+    setBusy(false)
+    if (!r.ok) return setError(r.error)
+    toast({ kind: 'ok', text: 'Password changed. Other devices were signed out.' })
+    onClose()
+  }
+  return (
+    <Modal onClose={onClose} label="Change password">
+      <h2>Change password</h2>
+      <p className="sub">Every other device will be signed out.</p>
+      {error && <div className="form-error">{error}</div>}
+      <label className="field">
+        <span>Current password</span>
+        <input className="input" type="password" autoComplete="current-password" autoFocus value={cur} onChange={(e) => setCur(e.target.value)} />
+      </label>
+      <label className="field">
+        <span>New password</span>
+        <input className="input" type="password" autoComplete="new-password" value={next} onChange={(e) => setNext(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} />
+        <small className={`hint ${next.length >= 10 ? 'good' : ''}`}>{next.length >= 10 ? '✓ Good length' : 'At least 10 characters'}</small>
+      </label>
+      <div className="dialog-actions">
+        <button className="btn secondary" onClick={onClose}>
+          Cancel
+        </button>
+        <button className="btn primary" disabled={busy || !cur || next.length < 10} onClick={() => void submit()}>
+          {busy ? 'Saving…' : 'Change password'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function DeleteAccountDialog({ email, onClose }: { email: string; onClose: () => void }) {
+  const [pw, setPw] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+  const submit = async (): Promise<void> => {
+    if (busy || !pw) return
+    setBusy(true)
+    const r = await api.deleteAccount(pw)
+    setBusy(false)
+    if (!r.ok) setError(r.error)
+  }
+  return (
+    <Modal onClose={onClose} label="Delete account">
+      <h2>Delete your account?</h2>
+      <p className="sub">
+        This permanently deletes <b>{email}</b>, its settings, dictionary and usage on the server, and signs out every device. Dictation history on this PC stays until you clear it. This can’t be undone.
+      </p>
+      {error && <div className="form-error">{error}</div>}
+      <label className="field">
+        <span>Enter your password to confirm</span>
+        <input className="input" type="password" autoComplete="current-password" autoFocus value={pw} onChange={(e) => setPw(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && void submit()} />
+      </label>
+      <div className="dialog-actions">
+        <button className="btn secondary" onClick={onClose}>
+          Keep my account
+        </button>
+        <button className="btn danger" disabled={busy || !pw} onClick={() => void submit()}>
+          {busy ? 'Deleting…' : 'Delete account'}
+        </button>
+      </div>
+    </Modal>
+  )
+}
+
+function AccountPage({ s, status, save, toast }: { s: PublicSettings; status: Status; save: Save; toast: (t: Toast) => void }) {
+  const [devices, setDevices] = useState<Device[] | null>(null)
+  const [dialog, setDialog] = useState<'password' | 'delete' | null>(null)
+  const load = (): void => void api.devices().then((r) => setDevices(r.ok ? (r.data ?? []) : []))
+  useEffect(load, [])
+  const signOutDevice = async (id: string): Promise<void> => {
+    const r = await api.signOutDevice(id)
+    if (!r.ok) toast({ kind: 'err', text: r.error })
+    load()
+  }
+  return (
+    <>
+      <div className="s-card">
+        <div className="profile">
+          <span className="avatar lg">{(s.name || s.accountEmail || '?')[0]}</span>
+          <div className="who">
+            <div className="email">{s.accountEmail}</div>
+            <div className="muted">VoiceFlow Cloud · {status.engine}</div>
+          </div>
+          <span className="badge">Free plan</span>
+        </div>
+      </div>
+
+      <div className="s-card">
+        <div className="eyebrow">Signed-in devices</div>
+        <div className="devices">
+          {devices === null ? (
+            <span className="muted">Loading…</span>
+          ) : devices.length === 0 ? (
+            <span className="muted">Couldn’t load your devices.</span>
+          ) : (
+            devices.map((d) => (
+              <div className="device" key={d.id}>
+                <Laptop size={18} />
+                <div className="what">
+                  <div>{d.device || 'Unknown device'}</div>
+                  <div className="muted">Active {ago(d.lastUsedAt)} · signed in {ago(d.createdAt)}</div>
+                </div>
+                {d.current ? (
+                  <span className="badge neutral">This device</span>
+                ) : (
+                  <button className="btn ghost sm" onClick={() => void signOutDevice(d.id)}>
+                    Sign out
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="s-card">
+        <div className="eyebrow">Security</div>
+        <Item label="Password" desc="Changing it signs out every other device">
+          <button className="btn secondary" onClick={() => setDialog('password')}>
+            <KeyRound size={16} /> Change
+          </button>
+        </Item>
+        <Item label="Sign out everywhere" desc="Ends every session, including this one">
+          <button
+            className="btn secondary"
+            onClick={async () => {
+              const r = await api.signOutEverywhere()
+              if (!r.ok) toast({ kind: 'err', text: r.error })
+            }}
+          >
+            <LogOut size={16} /> Sign out all
+          </button>
+        </Item>
+        <Item label="Sign out" desc="Only on this PC">
+          <button className="btn secondary" onClick={() => void api.signOut()}>
+            Sign out
+          </button>
+        </Item>
+      </div>
+
+      <div className="s-card">
+        <div className="eyebrow">Transcription</div>
+        <Item label="AI cleanup" desc="Fixes self-corrections (“at 3, no, at 4” → “at 4”) and punctuation on the server. Never rewrites your words.">
+          <Switch label="AI cleanup" on={s.polish} onChange={(v) => void save({ polish: v })} />
+        </Item>
+        <Item label="Server" desc="Your organization's VoiceFlow server" wide>
+          <Text value={s.serverUrl} label="Server address" placeholder="https://voiceflow.example.com" onSave={(v) => void save({ serverUrl: v.trim() })} />
+        </Item>
+      </div>
+
+      <div className="s-card danger">
+        <div className="eyebrow">Danger zone</div>
+        <Item label="Delete account" desc="Permanently removes your account and everything stored for it on the server">
+          <button className="btn danger-outline" onClick={() => setDialog('delete')}>
+            Delete account
+          </button>
+        </Item>
+      </div>
+
+      <p className="muted" style={{ fontSize: 12.5 }}>
+        Microphone permission: {status.micAccess} · Log: {status.logPath}
+      </p>
+      {dialog === 'password' && <ChangePasswordDialog onClose={() => setDialog(null)} toast={toast} />}
+      {dialog === 'delete' && <DeleteAccountDialog email={s.accountEmail} onClose={() => setDialog(null)} />}
+    </>
+  )
 }
 
 function ShortcutsDialog({ s, save, onClose }: { s: PublicSettings; save: Save; onClose: () => void }) {
@@ -150,7 +306,7 @@ export function SettingsModal({ s, status, save, toast, onClose, version, clearH
   const pages: [Page, string, typeof Settings2][] = [
     ['general', 'General', Settings2],
     ['system', 'System', SlidersHorizontal],
-    ['engine', 'Speech engine', AudioLines]
+    ['account', 'Account', CircleUser]
   ]
   const title = pages.find((p) => p[0] === page)![1]
 
@@ -173,7 +329,7 @@ export function SettingsModal({ s, status, save, toast, onClose, version, clearH
         <button className="icon-btn close" aria-label="Close settings" onClick={onClose}>
           <X size={18} />
         </button>
-        <h3 className="serif">{title}</h3>
+        <h3>{title}</h3>
         <div className="settings-content">
           {page === 'general' && (
             <>
@@ -286,73 +442,7 @@ export function SettingsModal({ s, status, save, toast, onClose, version, clearH
             </>
           )}
 
-          {page === 'engine' && (
-            <>
-              <div className="s-card">
-                <Item label="Engine" desc={status.provider} wide>
-                  <select className="select" value={s.provider} aria-label="Engine" onChange={(e) => void save({ provider: e.target.value as Settings['provider'] })}>
-                    <option value="deepgram">Deepgram Nova-3 (cloud, streaming, recommended)</option>
-                    <option value="xai">xAI Grok Voice (cloud, streaming)</option>
-                    <option value="local-whisper">Local Whisper (offline, private)</option>
-                    <option value="openai">OpenAI-compatible API</option>
-                  </select>
-                </Item>
-                {s.provider === 'deepgram' && (
-                  <>
-                    <KeyItem slot="deepgram" label="Deepgram API key" placeholder="Paste your key" has={s.keys.deepgram} encryption={status.encryptionAvailable} toast={toast} />
-                    <Item label="Region" desc="Auto picks the faster of EU and US for your connection">
-                      <select className="select" value={s.deepgramRegion} aria-label="Deepgram region" onChange={(e) => void save({ deepgramRegion: e.target.value as Settings['deepgramRegion'] })}>
-                        <option value="auto">Auto</option>
-                        <option value="eu">EU</option>
-                        <option value="us">US</option>
-                      </select>
-                    </Item>
-                  </>
-                )}
-                {s.provider === 'xai' && <KeyItem slot="xai" label="xAI API key" placeholder="xai-…" has={s.keys.xai} encryption={status.encryptionAvailable} toast={toast} />}
-                {s.provider === 'openai' && (
-                  <>
-                    <Item label="API base URL" wide>
-                      <Text value={s.apiBaseUrl} label="API base URL" onSave={(v) => void save({ apiBaseUrl: v })} />
-                    </Item>
-                    <Item label="Model" desc="e.g. whisper-large-v3-turbo" wide>
-                      <Text value={s.apiModel} label="Model" onSave={(v) => void save({ apiModel: v })} />
-                    </Item>
-                    <KeyItem slot="openai" label="API key" placeholder="sk-…" has={s.keys.openai} encryption={status.encryptionAvailable} toast={toast} />
-                  </>
-                )}
-                <Item label={s.provider === 'local-whisper' ? 'Model' : 'Offline fallback'} desc="Runs on this PC; downloaded once">
-                  <select className="select" value={s.localModel} aria-label="Local model" onChange={(e) => void save({ localModel: e.target.value })}>
-                    {LOCAL_MODELS.map(([v, l]) => (
-                      <option key={v} value={v}>
-                        {l}
-                      </option>
-                    ))}
-                  </select>
-                </Item>
-              </div>
-              <div className="s-card">
-                <div className="eyebrow">AI cleanup</div>
-                <Item label="Clean up with an LLM" desc="Fixes self-corrections and punctuation. Never rewrites your words.">
-                  <Switch label="AI cleanup" on={s.polish.enabled} onChange={(v) => void save({ polish: { ...s.polish, enabled: v } })} />
-                </Item>
-                {s.polish.enabled && (
-                  <>
-                    <Item label="API base URL" wide>
-                      <Text value={s.polish.baseUrl} label="Cleanup API base URL" onSave={(v) => void save({ polish: { ...s.polish, baseUrl: v } })} />
-                    </Item>
-                    <Item label="Model" wide>
-                      <Text value={s.polish.model} label="Cleanup model" onSave={(v) => void save({ polish: { ...s.polish, model: v } })} />
-                    </Item>
-                    <KeyItem slot="llm" label="API key" placeholder="gsk_…" has={s.keys.llm} encryption={status.encryptionAvailable} toast={toast} />
-                  </>
-                )}
-              </div>
-              <p className="muted">
-                Microphone permission: {status.micAccess} · Log: {status.logPath}
-              </p>
-            </>
-          )}
+          {page === 'account' && <AccountPage s={s} status={status} save={save} toast={toast} />}
         </div>
       </section>
       {sub === 'shortcuts' && <ShortcutsDialog s={s} save={save} onClose={() => setSub(null)} />}

@@ -1,0 +1,29 @@
+{
+  "name": "voiceflow-server",
+  "version": "1.1.0",
+  "private": true,
+  "description": "VoiceFlow backend: accounts, streaming speech relay, text pipeline, metering.",
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "start": "node src/index.ts",
+    "test": "node --no-warnings --test test/*.test.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "add-user": "node scripts/add-user.ts",
+    "test:container": "docker build -t voiceflow-server:1.1.0 . && node test/container.check.ts",
+    "docker:build": "docker build -t voiceflow-server:1.1.0 .",
+    "init-secrets": "node scripts/init-secrets.ts"
+  },
+  "dependencies": {
+    "pg": "8.23.1",
+    "ws": "8.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "24.19.2",
+    "@types/pg": "8.23.1",
+    "@types/ws": "8.18.1"
+  }
+}

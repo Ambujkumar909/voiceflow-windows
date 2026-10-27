@@ -1,11 +1,11 @@
 import '@fontsource-variable/figtree'
-import '@fontsource-variable/eb-garamond'
-import { ArrowRight, BookOpen, Copy, House, PanelLeft, Pencil, Plus, Search, Settings as Gear, Trash2 } from 'lucide-react'
+import { ArrowRight, BookOpen, Copy, Flame, Gauge, House, Mic, PanelLeft, Pencil, Plus, Search, Settings as Gear, Trash2, Type } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import type { DictEntry, HistoryEntry, PublicSettings, Settings, Stats, Status } from '../../shared/types'
+import { AuthScreen } from './auth'
 import { SettingsModal } from './settings'
-import { api, Keys, Modal, Switch, ToastView, type Toast } from './ui'
+import { api, Keys, Logo, Modal, Switch, ToastView, Wordmark, type Toast } from './ui'
 import './hub.css'
 
 type Page = 'home' | 'dictionary'
@@ -22,13 +22,21 @@ function dayHeading(t: number): string {
 }
 const time = (t: number): string => new Date(t).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
 const fmt = (n: number): string => n.toLocaleString()
-const ENGINES: Record<Settings['provider'], string> = { deepgram: 'Deepgram Nova-3', xai: 'xAI Grok Voice', 'local-whisper': 'Local Whisper', openai: 'OpenAI-compatible API' }
-/** "ready (onnx-community/whisper-base)" → "Ready · whisper-base" */
-const engineState = (raw: string): string => {
-  const m = raw.match(/^(\w[\w ]*?)(?: \((.*)\))?$/)
-  const word = (m?.[1] ?? raw).replace(/^\w/, (c) => c.toUpperCase())
-  const detail = m?.[2]?.split('/').pop()
-  return detail ? `${word} · ${detail}` : word
+const greeting = (): string => {
+  const h = new Date().getHours()
+  return h < 5 ? 'Working late' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening'
+}
+
+/** Connection state as a small chip: green when the live connection to the server is up. */
+function ConnectionChip({ engine }: { engine: string }) {
+  const ok = engine === 'connected'
+  const wait = /connecting/.test(engine)
+  return (
+    <span className="chip" title={`VoiceFlow Cloud: ${engine}`}>
+      <span className={`dot ${ok ? 'ok' : wait ? 'wait' : ''}`} />
+      {ok ? 'Connected' : wait ? 'Connecting…' : 'Offline'}
+    </span>
+  )
 }
 
 /** Typing-proof global keys: j/k/arrows move, Enter = primary action, "/" or Ctrl+F = search. */
@@ -62,8 +70,9 @@ function useListKeys(count: number, onEnter: (i: number) => void, search: React.
 function SearchBox({ value, onChange, placeholder, inputRef }: { value: string; onChange: (v: string) => void; placeholder: string; inputRef: React.RefObject<HTMLInputElement | null> }) {
   return (
     <label className="search">
-      <Search size={18} />
+      <Search size={17} />
       <input ref={inputRef} value={value} placeholder={placeholder} aria-label={placeholder} onChange={(e) => onChange(e.target.value)} onKeyDown={(e) => e.key === 'Escape' && (onChange(''), e.currentTarget.blur())} />
+      {!value && <kbd>/</kbd>}
     </label>
   )
 }
@@ -91,86 +100,74 @@ function Home({ s, history, stats, status, toast, onDelete }: { s: PublicSetting
   return (
     <>
       <div className="page-top">
-        <h1>
-          {stats.totalWords >= 2000 ? (
-            `Welcome back${s.name ? ', ' + s.name : ''}`
-          ) : (
-            <>
-              Hey{s.name ? ' ' + s.name : ''}, get back into the flow with <Keys combo={hold} />
-            </>
-          )}
-        </h1>
+        <div>
+          <h1>
+            {greeting()}
+            {s.name ? `, ${s.name}` : ''}
+          </h1>
+          <p className="lede">
+            Hold <Keys combo={hold} small /> anywhere and speak. Let go and it’s typed.
+          </p>
+        </div>
+        <ConnectionChip engine={status.engine} />
       </div>
       <div className="page-scroll">
-        <div className="columns">
-          <div className="primary-col">
-            {history.length > 0 && <SearchBox value={q} onChange={setQ} placeholder="Search your dictations" inputRef={searchRef} />}
-            {history.length === 0 ? (
-              <div className="empty">
-                <div className="empty-icon">
-                  <BookOpen size={24} />
-                </div>
-                <h2>No dictations yet</h2>
-                <p>
-                  Hold <Keys combo={hold} small /> in any app and speak. Release, and your words are typed where your cursor is. They’ll show up here.
-                </p>
-              </div>
-            ) : shown.length === 0 ? (
-              <p className="muted" style={{ padding: '24px 0', textAlign: 'center' }}>
-                No dictations match “{q}”.
-              </p>
-            ) : (
-              groups.map((g) => (
-                <section key={g.key}>
-                  <div className="day-header eyebrow">{dayHeading(g.at)}</div>
-                  <div className="list" role="list">
-                    {g.items.map(({ h, i }) => (
-                      <div key={h.id} className={`row ${sel === i ? 'selected' : ''}`} role="listitem" tabIndex={0} data-index={i} onMouseEnter={() => setSel(i)} onFocus={() => setSel(i)}>
-                        <div className="row-time">{time(h.at)}</div>
-                        <div className="row-text">{h.text.trim()}</div>
-                        <div className="row-actions">
-                          <button className="icon-btn" title="Copy transcript" aria-label="Copy transcript" onClick={() => copy(i)}>
-                            <Copy size={16} />
-                          </button>
-                          <button className="icon-btn" title="Delete" aria-label="Delete transcript" onClick={() => onDelete(h.id)}>
-                            <Trash2 size={16} />
-                          </button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              ))
-            )}
+        <div className="stats">
+          <div className="tile hero">
+            <Type size={18} />
+            <div className="v">{fmt(stats.totalWords)}</div>
+            <div className="l">words dictated</div>
           </div>
-          <aside className="aside">
-            <div className="card">
-              <div className="card-section">
-                <h2 className="card-title serif">
-                  Your <em>Insights</em>
-                </h2>
-                <div className="stat">
-                  <span className="stat-value serif">{fmt(stats.streakDays)}</span>
-                  <span className="stat-label">day streak</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-value serif">{fmt(stats.totalWords)}</span>
-                  <span className="stat-label">total words</span>
-                </div>
-                <div className="stat">
-                  <span className="stat-value serif">{fmt(stats.wpm)}</span>
-                  <span className="stat-label">wpm</span>
-                </div>
+          <div className="tile">
+            <Gauge size={18} />
+            <div className="v">{fmt(stats.wpm)}</div>
+            <div className="l">words per minute</div>
+          </div>
+          <div className="tile">
+            <Flame size={18} />
+            <div className="v">{fmt(stats.streakDays)}</div>
+            <div className="l">day streak</div>
+          </div>
+        </div>
+        <div className="primary-col">
+          {history.length > 0 && <SearchBox value={q} onChange={setQ} placeholder="Search your dictations" inputRef={searchRef} />}
+          {history.length === 0 ? (
+            <div className="empty">
+              <div className="empty-icon">
+                <Mic size={24} />
               </div>
-              <div className="card-section">
-                <div className="eyebrow" style={{ marginBottom: 4 }}>
-                  Engine
-                </div>
-                <div>{ENGINES[s.provider]}</div>
-                <div className="muted">{engineState(status.provider)}</div>
-              </div>
+              <h2>Your first dictation is one key-hold away</h2>
+              <p>
+                Click into any text box, hold <Keys combo={hold} small /> and talk. Release, and your words are typed where your cursor is. They’ll show up here.
+              </p>
             </div>
-          </aside>
+          ) : shown.length === 0 ? (
+            <p className="muted" style={{ padding: '24px 0', textAlign: 'center' }}>
+              No dictations match “{q}”.
+            </p>
+          ) : (
+            groups.map((g) => (
+              <section key={g.key}>
+                <div className="day-header eyebrow">{dayHeading(g.at)}</div>
+                <div className="list" role="list">
+                  {g.items.map(({ h, i }) => (
+                    <div key={h.id} className={`row ${sel === i ? 'selected' : ''}`} role="listitem" tabIndex={0} data-index={i} onMouseEnter={() => setSel(i)} onFocus={() => setSel(i)}>
+                      <div className="row-time">{time(h.at)}</div>
+                      <div className="row-text">{h.text.trim()}</div>
+                      <div className="row-actions">
+                        <button className="icon-btn" title="Copy transcript" aria-label="Copy transcript" onClick={() => copy(i)}>
+                          <Copy size={16} />
+                        </button>
+                        <button className="icon-btn" title="Delete" aria-label="Delete transcript" onClick={() => onDelete(h.id)}>
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ))
+          )}
         </div>
       </div>
     </>
@@ -340,6 +337,14 @@ function App() {
     ['home', 'Home', House],
     ['dictionary', 'Dictionary', BookOpen]
   ]
+  if (!s.signedIn)
+    return (
+      <>
+        <div className="titlebar" />
+        <AuthScreen s={s} status={status} save={save} toast={setToast} />
+        <ToastView toast={toast} onDone={() => setToast(null)} />
+      </>
+    )
   return (
     <>
       <div className="titlebar">
@@ -351,15 +356,8 @@ function App() {
         <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Main">
           <div>
             <div className="brand">
-              <svg className="brand-mark" width="24" height="24" viewBox="0 0 1024 1024" aria-hidden>
-                <rect x="32" y="32" width="960" height="960" rx="224" fill="#1a1a1a" />
-                <rect x="196" y="236" width="160" height="552" rx="80" fill="#f5f4f0" />
-                <rect x="668" y="236" width="160" height="552" rx="80" fill="#f5f4f0" />
-                <rect x="432" y="476" width="160" height="312" rx="80" fill="#ffa946" />
-              </svg>
-              <span className="brand-name">
-                Voice<em className="serif">Flow</em>
-              </span>
+              <Logo size={28} />
+              <Wordmark />
             </div>
             <ul className="nav">
               {nav.map(([id, label, Icon]) => (
@@ -382,16 +380,23 @@ function App() {
                 </button>
               </li>
             </ul>
+            <div className="side-account" title={s.accountEmail}>
+              <span className="avatar">{(s.name || s.accountEmail || '?')[0]}</span>
+              <div className="who">
+                <div>{s.name || s.accountEmail.split('@')[0]}</div>
+                <div className="muted">{s.accountEmail}</div>
+              </div>
+            </div>
           </div>
         </nav>
-        <main className={`page ${page === 'home' ? 'wide' : ''}`}>
+        <main className="page">
           {!status.shortcutRegistered && <p className="banner">Hands-free shortcut not active: {status.shortcutError}</p>}
           {status.holdError && <p className="banner">{status.holdError}</p>}
           {status.micAccess === 'denied' && <p className="banner">Microphone access is blocked in Windows Settings → Privacy &amp; security → Microphone.</p>}
           {page === 'home' ? <Home s={s} history={history} stats={stats} status={status} toast={setToast} onDelete={del} /> : <Dictionary s={s} save={save} />}
         </main>
       </div>
-      {settingsOpen && (
+      {settingsOpen && s.signedIn && (
         <SettingsModal
           s={s}
           status={status}

@@ -3,7 +3,8 @@ import { defineConfig } from 'electron-vite'
 import react from '@vitejs/plugin-react'
 
 export default defineConfig({
-  main: {},
+  // Dev-only benchmark tooling loads Whisper on demand; never bundle it (and it isn't shipped).
+  main: { build: { rollupOptions: { external: ['@huggingface/transformers'] } } },
   preload: {},
   renderer: {
     root: 'src/renderer',
